@@ -37,15 +37,21 @@ The app is a single-user idea inbox with two tab screens backed by Supabase.
 
 **Edit flow:** `editEntry(id, newText)` clears category/score, persists the new text, then re-runs classification in the background — same pattern as add.
 
+**Card actions:** `components/Card.js` supports three inline actions (copy to clipboard via `expo-clipboard`, inline text edit, delete with `Alert` confirmation). Edit mode replaces the `Text` body with a `TextInput`; saving re-triggers classification. Delete is currently permanent — soft delete is tracked in ROADMAP v1.1.
+
 **AI layer swap point (v2):** `services/gemini.js` exports one function `classifyEntry(text) → Promise<{ category, score }>`. Replace the `fetch` body to swap in a local LLM — no other file changes. The current implementation:
 - Calls `gemini-2.5-flash` via REST
 - Retries up to 3× with exponential backoff (1s → 2s → 4s) on `429/500/502/503/504`
 - Falls back to `{ category: 'Task', score: 50 }` only after retries exhaust
 - Logs every failure path with the `[gemini]` prefix in the Metro terminal
 
+**Known issue — score inconsistency:** the same text submitted twice can produce different scores because `temperature` is not set to 0 in the Gemini call. Fix is deferred to ROADMAP v2.0 (set `temperature: 0`, add sub-score breakdown).
+
 **Routing:** Expo Router v6 with a `(tabs)` group. Root layout `app/_layout.tsx` is customized — splash hides on mount (no font load blocking it) and the app is locked to dark mode via `ThemeProvider value={DarkTheme}`.
 
 **Constants:** All shared enums live in `lib/constants.js` — `USER_ID`, `CATEGORIES`, `STATES`, and color maps. Adding a new category means appending to `CATEGORIES` and `CATEGORY_COLORS` there only.
+
+**Unused template files:** `components/EditScreenInfo.tsx`, `components/ExternalLink.tsx`, `components/StyledText.tsx`, `components/Themed.tsx`, `components/useClientOnlyValue.ts`, `components/useColorScheme.ts`, and `constants/Colors.ts` are scaffolding left over from the Expo tabs template. They are not imported by any app code and can be ignored.
 
 ## Environment
 
@@ -54,6 +60,10 @@ Requires a `.env` file (copy from `.env.example`):
 - `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
 The Supabase `entries` table schema and the required Realtime enable step are documented in `README.md`.
+
+## Roadmap
+
+Planned features are documented in `ROADMAP.md` at the project root. Key upcoming milestones: soft delete + Deleted tab (v1.1), light/dark mode (v1.2), chat-style UI redesign (v1.3), Gemini token usage tracker (v1.4), scoring rework (v2.0), agentic features (v2.1), and local LLM swap (v3.0).
 
 ## Git workflow
 
