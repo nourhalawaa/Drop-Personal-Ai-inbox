@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useId } from 'react';
-import { supabase, listEntries, insertEntry, updateEntry } from '../services/supabase';
+import {
+  supabase,
+  listEntries,
+  insertEntry,
+  updateEntry,
+  deleteEntry as dbDelete,
+} from '../services/supabase';
 import { classifyEntry } from '../services/gemini';
 import { USER_ID } from '../lib/constants';
 
@@ -36,16 +42,49 @@ export function useEntries() {
     };
   }, [refresh, channelId]);
 
-  const addEntry = useCallback(async (text) => {
-    // Insert immediately so the card appears at once (optimistic with nulls)
-    const row = await insertEntry({ text, state: 'Inbox', category: null, score: null, starred: false });
-    setEntries((prev) => [row, ...prev]);
+  // Fire-and-forget classification — caller doesn't wait, so multiple entries
+  // can be submitted in parallel without queueing up.
+  const classifyInBackground = useCallback((id, text) => {
+    classifyEntry(text)
+      .then(async ({ category, score }) => {
+        await updateEntry(id, { category, score });
+        setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, category, score } : e)));
+      })
+      .catch((err) => console.warn('[useEntries] classify failed', err?.message ?? err));
+  }, []);
 
-    // Classify in background; update the row when done
-    const { category, score } = await classifyEntry(text);
-    await updateEntry(row.id, { category, score });
-    // Real-time subscription will pick up the update, but patch local state too for speed
-    setEntries((prev) => prev.map((e) => (e.id === row.id ? { ...e, category, score } : e)));
+  const addEntry = useCallback(
+    async (text) => {
+      // Returns as soon as the row is persisted — user can submit the next entry
+      // immediately. Classification continues asynchronously.
+      const row = await insertEntry({
+        text,
+        state: 'Inbox',
+        category: null,
+        score: null,
+        starred: false,
+      });
+      setEntries((prev) => [row, ...prev]);
+      classifyInBackground(row.id, text);
+    },
+    [classifyInBackground]
+  );
+
+  const editEntry = useCallback(
+    async (id, newText) => {
+      // Optimistic: clear category/score so the card shows "Processing…" again
+      setEntries((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, text: newText, category: null, score: null } : e))
+      );
+      await updateEntry(id, { text: newText, category: null, score: null });
+      classifyInBackground(id, newText);
+    },
+    [classifyInBackground]
+  );
+
+  const deleteEntry = useCallback(async (id) => {
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    await dbDelete(id);
   }, []);
 
   const setState = useCallback(async (id, state) => {
@@ -53,13 +92,23 @@ export function useEntries() {
     await updateEntry(id, { state });
   }, []);
 
-  const toggleStar = useCallback(async (id) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e))
-    );
-    const entry = entries.find((e) => e.id === id);
-    if (entry) await updateEntry(id, { starred: !entry.starred });
-  }, [entries]);
+  const toggleStar = useCallback((id) => {
+    // Compute the new value inside setEntries so we never read a stale closure.
+    setEntries((prev) => {
+      let nextStarred = false;
+      const next = prev.map((e) => {
+        if (e.id === id) {
+          nextStarred = !e.starred;
+          return { ...e, starred: nextStarred };
+        }
+        return e;
+      });
+      updateEntry(id, { starred: nextStarred }).catch((err) =>
+        console.warn('[useEntries] toggleStar failed', err?.message ?? err)
+      );
+      return next;
+    });
+  }, []);
 
-  return { entries, loading, addEntry, setState, toggleStar };
+  return { entries, loading, addEntry, editEntry, deleteEntry, setState, toggleStar };
 }

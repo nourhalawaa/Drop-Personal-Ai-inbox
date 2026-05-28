@@ -5,7 +5,7 @@ import { Card } from '../../components/Card';
 import { CATEGORIES, CATEGORY_COLORS } from '../../lib/constants';
 
 export default function KanbanScreen() {
-  const { entries, setState, toggleStar } = useEntries();
+  const { entries, editEntry, deleteEntry, setState, toggleStar } = useEntries();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -31,6 +31,8 @@ export default function KanbanScreen() {
                       entry={entry}
                       onToggleStar={toggleStar}
                       onSetState={setState}
+                      onEdit={editEntry}
+                      onDelete={deleteEntry}
                     />
                   ))
                 )}

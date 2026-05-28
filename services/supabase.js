@@ -50,3 +50,12 @@ export async function updateEntry(id, patch) {
     .eq('user_id', USER_ID);
   if (error) throw error;
 }
+
+export async function deleteEntry(id) {
+  const { error } = await supabase
+    .from('entries')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', USER_ID);
+  if (error) throw error;
+}

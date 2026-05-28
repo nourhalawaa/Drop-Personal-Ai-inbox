@@ -5,7 +5,7 @@ import { Card } from '../../components/Card';
 import { DropInput } from '../../components/DropInput';
 
 export default function ListScreen() {
-  const { entries, loading, addEntry, setState, toggleStar } = useEntries();
+  const { entries, loading, addEntry, editEntry, deleteEntry, setState, toggleStar } = useEntries();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -26,6 +26,8 @@ export default function ListScreen() {
             entry={item}
             onToggleStar={toggleStar}
             onSetState={setState}
+            onEdit={editEntry}
+            onDelete={deleteEntry}
           />
         )}
         contentContainerStyle={styles.list}

@@ -1,11 +1,51 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { Ionicons } from '@expo/vector-icons';
 import { StarButton } from './StarButton';
 import { StateSelector } from './StateSelector';
 import { CATEGORY_COLORS } from '../lib/constants';
 
-export function Card({ entry, onToggleStar, onSetState }) {
-  const { text, category, score, starred, state } = entry;
+export function Card({ entry, onToggleStar, onSetState, onEdit, onDelete }) {
+  const { id, text, category, score, starred, state } = entry;
   const isProcessing = category === null;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    await Clipboard.setStringAsync(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  function handleEditStart() {
+    setDraft(text);
+    setEditing(true);
+  }
+
+  function handleEditCancel() {
+    setDraft(text);
+    setEditing(false);
+  }
+
+  function handleEditSave() {
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === text) {
+      setEditing(false);
+      return;
+    }
+    onEdit(id, trimmed);
+    setEditing(false);
+  }
+
+  function handleDelete() {
+    Alert.alert('Delete entry?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDelete(id) },
+    ]);
+  }
 
   return (
     <View style={styles.card}>
@@ -22,12 +62,53 @@ export function Card({ entry, onToggleStar, onSetState }) {
             </View>
           </View>
         )}
-        <StarButton starred={starred} onToggle={() => onToggleStar(entry.id)} />
+        <StarButton starred={starred} onToggle={() => onToggleStar(id)} />
       </View>
 
-      <Text style={styles.body} numberOfLines={4}>{text}</Text>
+      {editing ? (
+        <TextInput
+          style={styles.editor}
+          value={draft}
+          onChangeText={setDraft}
+          multiline
+          autoFocus
+          textAlignVertical="top"
+          placeholderTextColor="#475569"
+        />
+      ) : (
+        <Text style={styles.body}>{text}</Text>
+      )}
 
-      <StateSelector currentState={state} onSelect={(s) => onSetState(entry.id, s)} />
+      <View style={styles.actions}>
+        {editing ? (
+          <>
+            <TouchableOpacity onPress={handleEditCancel} style={styles.actionBtn} hitSlop={8}>
+              <Ionicons name="close" size={18} color="#94a3b8" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleEditSave} style={styles.actionBtn} hitSlop={8}>
+              <Ionicons name="checkmark" size={18} color="#10b981" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity onPress={handleCopy} style={styles.actionBtn} hitSlop={8}>
+              <Ionicons
+                name={copied ? 'checkmark' : 'copy-outline'}
+                size={16}
+                color={copied ? '#10b981' : '#94a3b8'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleEditStart} style={styles.actionBtn} hitSlop={8}>
+              <Ionicons name="pencil-outline" size={16} color="#94a3b8" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDelete} style={styles.actionBtn} hitSlop={8}>
+              <Ionicons name="trash-outline" size={16} color="#94a3b8" />
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      <StateSelector currentState={state} onSelect={(s) => onSetState(id, s)} />
     </View>
   );
 }
@@ -82,5 +163,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#cbd5e1',
     lineHeight: 20,
+  },
+  editor: {
+    fontSize: 14,
+    color: '#f1f5f9',
+    lineHeight: 20,
+    backgroundColor: '#020617',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 8,
+    minHeight: 60,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 14,
+    marginTop: 8,
+  },
+  actionBtn: {
+    padding: 2,
   },
 });
