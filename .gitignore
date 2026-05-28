@@ -31,10 +31,16 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
 *.tsbuildinfo
+expo-env.d.ts
+
+# debug screenshots
+preview.webp
+*.webp
 
 # generated native folders
 /ios
